@@ -1,0 +1,402 @@
+library ieee;
+use ieee.std_logic_1164.all;
+USE IEEE.std_logic_arith.ALL; 
+USE IEEE.std_logic_unsigned.ALL;
+USE IEEE.numeric_std.all;
+
+entity debug_TOPLEVEL_PROGRAM is
+port(
+	-- INPUT : UART
+	data_receive 		: in std_logic_vector(7 downto 0); --Paralel Data In
+	receive_rx			: in std_logic;
+	clk					: in std_logic;
+	reset					: in std_logic;
+	
+	-- OUTPUT to Calculator
+	sign1					: out std_logic_vector(7 downto 0);
+	sign2					: out std_logic_vector(7 downto 0);
+	op1					: out std_logic_vector(7 downto 0);
+	op2					: out std_logic_vector(7 downto 0);
+	operator				: out std_logic_vector(7 downto 0)
+	
+	--DISPLAY OUTPUT FPGA
+	seg1	: out std_logic_vector (1 to 7); -- Output segmen display 1 (sign)
+	seg2	: out std_logic_vector (1 to 7); -- Output segmen display 2 (digit ratusan)
+	seg3	: out std_logic_vector (1 to 7); -- Output segmen display 3 (digit puluhan) 		
+	seg4	: out std_logic_vector (1 to 7); -- Output segmen display 4 (digit ratusan)
+	en_bcd1, en_bcd2, en_bcd3, en_bcd4 : out std_logic -- output display mana yg ingin digunakan 
+	);
+end entity;
+
+architecture rtl of debug_TOPLEVEL_PROGRAM is
+
+ component Clock_Divider is
+port ( 
+	clk,reset: in std_logic;
+	clock_out: out std_logic);
+end component	;
+
+component TOP_UART2KALK is
+port(
+	-- INPUT : Control FSM
+	en_detect			: in std_logic;
+	en_operator			: in std_logic;
+	en_sign1				: in std_logic;
+	en_op1_dig1			: in std_logic;
+	en_op1_dig2			: in std_logic;
+	en_op1_dig3			: in std_logic;
+	en_sign2				: in std_logic;
+	en_op2_dig1			: in std_logic;
+	en_op2_dig2			: in std_logic;
+	en_op2_dig3			: in std_logic;
+	en_ascii2bin		: in std_logic;
+
+	-- INPUT : UART
+	data_receive 		: in std_logic_vector(7 downto 0); --Paralel Data In
+	receive_rx			: in std_logic;
+	clock					: in std_logic;
+	reset					: in std_logic;
+	
+	-- OUTPUT to COntrol FSM
+	finish_detect 		: out std_logic;
+	finish_ascii2bin	: out std_logic;
+	detect_ascii		: out std_logic_vector(4 downto 0);
+	
+	-- OUTPUT to Calculator
+	sign1					: out std_logic_vector(7 downto 0);
+	sign2					: out std_logic_vector(7 downto 0);
+	op1					: out std_logic_vector(7 downto 0);
+	op2					: out std_logic_vector(7 downto 0);
+	operator				: out std_logic_vector(7 downto 0)
+	);
+	end component	;
+
+--	component top_kalk is
+--port(
+--	-- INPUT
+--	in_operator 					: in std_logic_vector (7 downto 0); -- Input operator operasi
+--	in_operand_1, in_operand_2	: in std_logic_vector (7 downto 0); -- Input angka yang akan dikalkulasi
+--	in_sign_1, in_sign_2			: in std_logic_vector (7 downto 0); -- Input sign angka yang akan dikalkulasi
+--	in_go_kalk						: in std_logic; -- Penanda bahwa kalkulator siap digunakan
+--	clk 								: in std_logic;
+--	-- OUTPUT
+--	out_sign						: out std_logic_vector (7 downto 0); -- Output tanda angka yang telah dikalkulasi
+--	out_result					: out std_logic_vector (9 downto 0); -- Output hasil yang telah dikalkulasi
+--	out_finish_kalk			: out std_logic -- Penanda bahwa kalkulator telah selesai digunakan
+--);
+--end component	;
+
+--	component top_kalk2uart is
+--port(
+--	--Input
+--	reset 	: in std_logic;
+--	clk		  : in std_logic;
+--	special_clk : in std_logic;
+--	in_data	: in std_logic_vector(9 downto 0); --Dari kalkulator
+--	in_sign  : in std_logic_vector(7 downto 0);
+--	
+--	--CONTROL FSM
+--		--For MUX
+--		error 			  : in std_logic;
+--	
+--		--For Output 4 x 8 bit registers
+--		en_output : in std_logic;
+--		
+--		--For Converter BIN2ASCII
+--		en_bin2asc : in std_logic;
+--		
+--	
+--	--OUTPUT
+--	
+--	--Paralel Out
+--	out_sign : out std_logic_vector(7 downto 0);
+--	out_dig1 : out std_logic_vector(7 downto 0);
+--	out_dig2 : out std_logic_vector(7 downto 0);
+--	out_dig3 : out std_logic_vector(7 downto 0);
+--	
+--	--UART Out
+--	out_uart : out std_logic_vector(7 downto 0);
+--	sending : out std_logic;
+--		
+--	--CONTROL FSM
+--		--From BIN2ASCII
+--		finish_bin2ascii : out std_logic
+--		
+--	);
+--end component	;
+
+	component control_fsm is
+port(
+	--INPUT
+	finish_detect		: in std_logic;
+	detect_ascii 		: in std_logic_vector(4 downto 0);
+	finish_ascii2bin  : in std_logic;
+	finish_kalk			: in std_logic;
+	finish_bin2ascii	: in std_logic;
+	reset					: in std_logic;
+	clk					: in std_logic;
+	start					: in std_logic;
+	
+	--OUTPUT
+	en_detect			: out std_logic;
+	en_operator			: out std_logic;
+	en_sign1				: out std_logic;
+	en_op1_dig1			: out std_logic;
+	en_op1_dig2			: out std_logic;
+	en_op1_dig3			: out std_logic;
+	en_sign2				: out std_logic;
+	en_op2_dig1			: out std_logic;
+	en_op2_dig2			: out std_logic;
+	en_op2_dig3			: out std_logic;
+	en_ascii2bin		: out std_logic;
+	en_bin2ascii		: out std_logic;
+	en_7seg				: out std_logic;
+	en_output			: out std_logic;
+	error					: out std_logic;
+	go_kalk				: out std_logic
+	);
+end component	;
+
+--component	my_uart_top is
+--port(
+--		clk 			: in std_logic;
+--		rst_n 		: in std_logic;
+--		
+---- paralel part
+--		send 			: in std_logic;							--Indikator sudah siap mengirim data
+--		send_data	: in std_logic_vector(7 downto 0) ; --Data yang mau dikirimdari FPGA ke Komputer ( paralel )
+--		receive 		: out std_logic;							--Indikator sudah siap menerima data
+--		receive_data: out std_logic_vector(7 downto 0) ; -- Data yang didapat dari Komputer ke FPGA ( paralel )
+--		
+---- serial part
+--		rs232_rx 	: in std_logic;				--Data yang dikirim secara serial ke FPGA ( serial )
+--		rs232_tx 	: out std_logic				--Data yang dikirim secara serial ke KOMPUTER ( serial )
+--);
+--end component	;
+
+component toplevel_bcd is
+port(
+	-- INPUT
+	dig1	: in std_logic_vector (7 downto 0); -- Input digit ratusan
+	dig2	: in std_logic_vector (7 downto 0); -- Input digit puluhan
+	dig3	: in std_logic_vector (7 downto 0); -- Input digit satuan
+	sign	: in std_logic_vector (7 downto 0); -- Input sign hasil
+
+	-- OUTPUT
+	seg1	: out std_logic_vector (1 to 7); -- Output segmen display 1 (sign)
+	seg2	: out std_logic_vector (1 to 7); -- Output segmen display 2 (digit ratusan)
+	seg3	: out std_logic_vector (1 to 7); -- Output segmen display 3 (digit puluhan) 		
+	seg4	: out std_logic_vector (1 to 7); -- Output segmen display 4 (digit ratusan)
+	en_bcd1, en_bcd2, en_bcd3, en_bcd4 : out std_logic -- output display mana yg ingin digunakan 
+);
+end component;
+
+	--UART
+	signal special_clk : std_logic; --Clock 9600/11 Hz
+	signal data_receive_UART : std_logic_vector(7 downto 0);
+	signal start_signal : std_logic;
+	signal data_send_UART : std_logic_vector(7 downto 0);
+	signal send_signal 	: std_logic;
+	
+	signal	in_sign1				:  std_logic_vector(7 downto 0);
+	signal 	in_sign2				:  std_logic_vector(7 downto 0);
+	signal	in_op1				:  std_logic_vector(7 downto 0);
+	signal	in_op2				:  std_logic_vector(7 downto 0);
+	signal	in_operator			:  std_logic_vector(7 downto 0);
+	
+	signal kalk_sign		: std_logic_vector(7 downto 0);
+	signal kalk_result 	: std_logic_vector(9 downto 0);
+	
+	signal 	output_sign		:  std_logic_vector(7 downto 0);
+	signal	output_dig1		:  std_logic_vector(7 downto 0);
+	signal	output_dig2		:  std_logic_vector(7 downto 0);
+	signal	output_dig3		:  std_logic_vector(7 downto 0);
+	
+	
+		signal finish_detect_fsm		: std_logic;
+		signal detect_ascii_fsm			: std_logic_vector(4 downto 0);
+		signal finish_ascii2bin_fsm	: std_logic;
+		signal finish_kalk_fsm			: std_logic;
+		signal finish_bin2ascii_fsm	: std_logic;
+				
+				signal en_detect_fsm			: std_logic;
+				signal en_operator_fsm			: std_logic;
+				signal en_sign1_fsm				: std_logic;
+				signal en_op1_dig1_fsm		: std_logic;
+				signal en_op1_dig2_fsm		: std_logic;
+				signal en_op1_dig3_fsm		: std_logic;
+				signal en_sign2_fsm			: std_logic;
+				signal en_op2_dig1_fsm		: std_logic;
+				signal en_op2_dig2_fsm		: std_logic;
+				signal en_op2_dig3_fsm			: std_logic;
+				signal en_ascii2bin_fsm	: std_logic;
+				signal en_bin2ascii_fsm	: std_logic;
+				signal en_7seg_fsm			: std_logic;
+				signal en_output_fsm		: std_logic;
+				signal error_fsm			: std_logic;
+				signal go_kalk_fsm			: std_logic;
+	
+begin
+
+	special_clock : clock_divider
+	port map( 
+	clk	=> clk,
+	reset => reset,
+	clock_out => special_clk
+	);
+	
+	UART2KALK : TOP_UART2KALK 
+	port MAP(
+	-- INPUT : Control FSM
+	en_detect			=> en_detect_fsm,
+	en_operator			=> en_operator_fsm,
+	en_sign1				=> en_sign1_fsm,
+	en_op1_dig1			=> en_op1_dig1_fsm,
+	en_op1_dig2			=> en_op1_dig2_fsm,
+	en_op1_dig3			=> en_op1_dig3_fsm,
+	en_sign2				=> en_sign2_fsm,
+	en_op2_dig1			=> en_op2_dig1_fsm,
+	en_op2_dig2			=> en_op2_dig2_fsm,
+	en_op2_dig3			=> en_op2_dig3_fsm,
+	en_ascii2bin		=> en_ascii2bin_fsm,
+
+	-- INPUT : UART
+	data_receive 		=> data_receive_UART,
+	receive_rx			=> start_signal,
+	clock					=> clk,
+	reset					=> reset,
+	
+	-- OUTPUT to COntrol FSM
+	finish_detect 		=> finish_detect_fsm,
+	finish_ascii2bin	=> finish_ascii2bin_fsm,
+	detect_ascii		=> detect_ascii_fsm,
+	
+	-- OUTPUT to Calculator
+	sign1					=> in_sign1,
+	sign2					=> in_sign2,
+	op1					=> in_op1,
+	op2					=> in_op2,
+	operator				=> in_operator
+	);
+	
+--	KALKULATOR : top_kalk
+--	port map(
+--	-- INPUT
+--	in_operator 	=> in_operator,
+--	in_operand_1	=> in_op1,
+--	in_operand_2	=> in_op2,
+--	in_sign_1		=> in_sign1,
+--	in_sign_2		=> in_sign2,
+--	in_go_kalk		=> go_kalk_fsm,
+--	clk 				=> clk,
+--	-- OUTPUT
+--	out_sign					=> kalk_sign,
+--	out_result				=> kalk_result,
+--	out_finish_kalk		=> finish_kalk_fsm
+--	);
+
+--	KALK2UART : top_kalk2uart 
+--	port map(
+--	--Input
+--	reset 	=> reset,
+--	clk		=> clk,
+--	special_clk => special_clk,
+--	in_data	=> kalk_result,
+--	in_sign  => kalk_sign,
+--	
+--	--CONTROL FSM
+--		--For MUX
+--		error 			 => error_fsm,
+--	
+--		--For Output 4 x 8 bit registers
+--		en_output => en_output_fsm,
+--		
+--		--For Converter BIN2ASCII
+--		en_bin2asc => en_bin2ascii_fsm,
+--		
+--	
+--	--OUTPUT
+--	
+--	--Paralel Out
+--	out_sign => output_sign,
+--	out_dig1 => output_dig1,
+--	out_dig2 => output_dig2,
+--	out_dig3 => output_dig3,
+--	
+--	--UART Out
+--	out_uart => data_send_UART,
+--	sending => send_signal,
+--		
+--	--CONTROL FSM
+--		--From BIN2ASCII
+--		finish_bin2ascii => finish_bin2ascii_fsm
+--		
+--	);
+--	
+	fsm_controller : control_fsm 
+	port map(
+	--INPUT
+	finish_detect		=> finish_detect_fsm,
+	detect_ascii 		=> detect_ascii_fsm,
+	finish_ascii2bin  => finish_ascii2bin_fsm,
+	finish_kalk			=> finish_kalk_fsm,
+	finish_bin2ascii	=> finish_bin2ascii_fsm,
+	reset					=> reset,
+	clk					=> clk,
+	start					=> start_signal,
+	
+	--OUTPUT
+	en_detect			=> en_detect_fsm,
+	en_operator			=> en_operator_fsm,
+	en_sign1			   => en_sign1_fsm,
+	en_op1_dig1			=> en_op1_dig1_fsm,
+	en_op1_dig2			=> en_op1_dig2_fsm,
+	en_op1_dig3			=> en_op1_dig3_fsm,
+	en_sign2				=> en_sign2_fsm,
+	en_op2_dig1			=> en_op2_dig1_fsm,
+	en_op2_dig2			=> en_op2_dig2_fsm,
+	en_op2_dig3			=> en_op2_dig3_fsm,
+	en_ascii2bin		=> en_ascii2bin_fsm,
+	en_bin2ascii		=> en_bin2ascii_fsm,
+	en_7seg				=> en_7seg_fsm,
+	en_output			=> en_output_fsm,
+	error					=> error_fsm,
+	go_kalk				=> go_kalk_fsm
+	);
+	
+--	UART_comm : my_uart_top 
+--	port map(
+--		clk 			=> clk,
+--		rst_n 		=> reset,
+--		
+---- paralel part
+--		send 			=> send_signal,
+--		send_data   => data_send_UART,
+--		receive 		=> start_signal,
+--		receive_data => data_receive_UART,
+--		
+---- serial part
+--		rs232_rx 	=> rs232_rx,
+--		rs232_tx 	=> rs232_tx				
+--);
+
+	segment7_display : toplevel_bcd
+	port map(
+	-- INPUT
+	dig1	=> output_dig1,
+	dig2	=> output_dig2,
+	dig3	=> output_dig3,
+	sign	=> output_sign,
+
+	-- OUTPUT
+	seg1	=> seg1,
+	seg2	=> seg2,
+	seg3	=> seg3,	
+	seg4	=> seg4,
+	en_bcd1 => en_bcd1,
+	en_bcd2 => en_bcd2,
+	en_bcd3 => en_bcd3,
+	en_bcd4 => en_bcd4
+	);
+
+end architecture;

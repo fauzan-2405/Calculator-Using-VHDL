@@ -1,0 +1,44 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity kalk2uart_32bitregister is
+	port(
+		Reset		: in std_logic;
+		D1			: in std_logic_vector(7 downto 0);
+		D2			: in std_logic_vector(7 downto 0);
+		D3			: in std_logic_vector(7 downto 0);
+		D4 		: in std_logic_vector(7 downto 0);
+		Clock		: in std_logic;
+		Enable	: in std_logic;
+		out_serial : out std_logic
+		);
+end kalk2uart_32bitregister;
+
+architecture RTL of kalk2uart_32bitregister is
+	signal serial_out: std_logic_vector(31 downto 0);
+	signal paralel_out : std_logic_vector(31 downto 0);
+	signal first_load : std_logic;
+
+begin
+	process(Clock, Reset, D1, D2, D3, D4, Enable)
+		begin
+			if (enable ='0') OR (Reset= '1') then
+				paralel_out <= (others => '0');
+				serial_out <= (others => '0');
+				first_load <= '0';
+			else
+				if Clock = '1' and Clock'event then
+						if first_load = '1' then
+							serial_out(0) <= '0';
+							serial_out(31 downto 1) <= serial_out(30 downto 0);
+						else
+							serial_out  <= D1 & D2 & D3 & D4;
+							first_load <= '1';
+						end if;
+				end if;
+			end if;
+	end process;
+
+	out_serial <= serial_out(31);
+	
+end architecture;

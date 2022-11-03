@@ -1,0 +1,147 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity top_kalk2uart is
+port(
+	--Input
+	reset 	: in std_logic;
+	clk		  : in std_logic;
+	in_data	: in std_logic_vector(9 downto 0); --Dari kalkulator
+	in_sign  : in std_logic_vector(7 downto 0);
+	
+	--CONTROL FSM
+		--For MUX
+		error 			  : in std_logic;
+	
+		--For Output 4 x 8 bit registers
+		en_output : in std_logic;
+		
+		--For Converter BIN2ASCII
+		en_bin2asc : in std_logic;
+		
+	
+	--OUTPUT
+	
+	--Paralel Out
+	out_sign : out std_logic_vector(7 downto 0);
+	out_dig1 : out std_logic_vector(7 downto 0);
+	out_dig2 : out std_logic_vector(7 downto 0);
+	out_dig3 : out std_logic_vector(7 downto 0);
+	
+	--Serial Out
+	out_uart : out std_logic;
+	
+		
+	--CONTROL FSM
+		--From BIN2ASCII
+		finish_bin2ascii : out std_logic
+		
+	);
+end entity;
+
+architecture behav of top_kalk2uart is
+	component kalk2uart_32bitregister is
+	port(
+		Reset		: in std_logic;
+		D1			: in std_logic_vector(7 downto 0);
+		D2			: in std_logic_vector(7 downto 0);
+		D3			: in std_logic_vector(7 downto 0);
+		D4 		: in std_logic_vector(7 downto 0);
+		Clock		: in std_logic;
+		Enable	: in std_logic;
+		out_serial : out std_logic
+		);
+	end component;
+	
+	component MUX_KALK2UART is
+	port(
+	--INPUT
+		in_sign	: in std_logic_vector(7 downto 0);
+		in_dig1	: in std_logic_vector(7 downto 0);
+		in_dig2	: in std_logic_vector(7 downto 0);
+		in_dig3	: in std_logic_vector(7 downto 0);
+	--Selector
+		error				 : in std_logic;
+		finish_bin2ascii : in std_logic;
+	--OUTPUT
+		out_reg1 : out std_logic_vector(7 downto 0);
+		out_reg2 : out std_logic_vector(7 downto 0);
+		out_reg3 : out std_logic_vector(7 downto 0);
+		out_reg4 : out std_logic_vector(7 downto 0)
+		);
+	end component;
+	
+	component toplevel_bin2asc is
+		port(
+		in_converter		:	in std_logic_vector(9 downto 0);
+		en_bin2asc			:	in std_logic;
+		clk					:	in std_logic;
+		asc_dig1				:	out std_logic_vector(7 downto 0);
+		asc_dig2				:	out std_logic_vector(7 downto 0);
+		asc_dig3				:	out std_logic_vector(7 downto 0);
+		finish_bin2ascii	:out std_logic
+		);
+	end component;
+	
+	--Signal Converter
+	signal conv_out1 : std_logic_vector(7 downto 0); --Dig1 (ASCII)
+	signal conv_out2 : std_logic_vector(7 downto 0); --Dig2 (ASCII)
+	signal conv_out3 : std_logic_vector(7 downto 0); --Dig3 (ASCII)
+	signal s_finish_bin2ascii : std_logic;
+	
+	--Signal Output Mux
+	signal mux_out1 : std_logic_vector(7 downto 0);
+	signal mux_out2	: std_logic_vector(7 downto 0);
+	signal mux_out3	: std_logic_vector(7 downto 0);
+	signal mux_out4 : std_logic_vector(7 downto 0);
+	
+		
+begin
+	
+	bin2ascii : toplevel_bin2asc 
+	port map(
+		in_converter		=> in_data,
+		en_bin2asc			=> en_bin2asc,
+		clk					=> clk,
+		asc_dig1				=> conv_out1,
+		asc_dig2				=> conv_out2,
+		asc_dig3			   => conv_out3,
+		finish_bin2ascii  => s_finish_bin2ascii
+		);
+	
+	mux_error : mux_kalk2uart
+	port map(
+	--INPUT
+		in_sign => in_sign,
+		in_dig1 => conv_out1,
+		in_dig2 => conv_out2,
+		in_dig3 => conv_out3,
+	--INPUT Selector
+		error	  => error,
+		finish_bin2ascii => s_finish_bin2ascii,
+	--OUTPUT
+		out_reg1 => mux_out1,
+		out_reg2 => mux_out2,
+		out_reg3 => mux_out3,
+		out_reg4 => mux_out4
+		);
+	
+	register_output : kalk2uart_32bitregister
+	port map(
+		Reset		=> reset,
+		D1			=> mux_out1,
+		D2			=> mux_out2,
+		D3			=> mux_out3,
+		D4 		=> mux_out4,
+		Clock		=> clk,
+		Enable	=> en_output,
+		out_serial => out_uart
+		);
+		
+finish_bin2ascii <= s_finish_bin2ascii;
+out_sign <= mux_out1;
+out_dig1 <= mux_out2;
+out_dig2 <= mux_out3;
+out_dig3 <= mux_out4;
+
+end architecture;

@@ -1,0 +1,53 @@
+LIBRARY IEEE;
+USE IEEE.std_logic_1164.ALL;
+USE IEEE.std_logic_arith.ALL; 
+USE IEEE.std_logic_unsigned.ALL;
+
+entity mult is
+port (
+-- INPUT
+	sign_1, sign_2			: in std_logic_vector (7 downto 0); -- Input tanda dari kedua operan
+	operand_1, operand_2	: in std_logic_vector (7 downto 0); -- Input angka kedua operan
+	en_mult					: in std_logic;
+	
+-- OUTPUT
+	sign_out					: out std_logic_vector (7 downto 0); -- Output sign hasil penjumlahan kedua operan
+	result					: out std_logic_vector (9 downto 0); -- Output hasil penjumlahan kedua operan
+	finish_kalk				: out std_logic
+);
+end entity;
+
+architecture behavioral of mult is
+	signal s_result 		: std_logic_vector (15 downto 0);
+	signal s_sign_out		: std_logic_vector (7 downto 0);
+	signal s_finish_mult	: std_logic;
+	
+begin
+process (en_mult, sign_1, sign_2, operand_1, operand_2)
+	begin
+	if en_mult = '1' then
+		-- Jika kedua operand memiliki tanda yang sama
+		if (sign_1 = sign_2) then
+			s_sign_out <= "00101011"; -- Plus
+		
+		-- Jika kedua operand memiliki tanda yang berbeda
+		else
+			s_sign_out <= "00101101"; -- Minus		
+		end if;
+		
+		if (operand_1 * operand_2) > "0000001111100111" then -- Jika hasil perkalian lebih besar dari 999
+			s_result <= "0000000000000000";
+		else
+			s_result <=  operand_1 * operand_2;
+		end if;
+		s_finish_mult <= '1';
+	else
+		s_finish_mult <= '0';
+	end if;
+	
+end process;
+	-- Output Generator
+	result <= s_result (9 downto 0);
+	sign_out <= s_sign_out;
+	finish_kalk <= s_finish_mult;
+end behavioral;
